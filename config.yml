@@ -1,0 +1,9 @@
+plex:
+    url: <plex_url>
+    token: <plex_token>
+    movie_library_id: <plex_movie_library_id>
+radarr:
+    url: <radarr_url>
+    apikey: <radarr_apikey>
+    quality_profile: <radarr_quality_profile>
+    root_folder_path: <radarr_root_folder_path>
