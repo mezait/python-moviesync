@@ -58,7 +58,7 @@ class LetterboxdExport:
         for i, item in enumerate(letterboxd_ids, 0):
             if item != plex_id_keys[i]:
                 # Out of order, determine current place in the list
-                idx = plex_id_keys.index(item)            
+                idx = plex_id_keys.index(item)
                 actual = plex_ids[plex_id_keys[idx]]
             
                 if self.plex.move_item(collection_id, actual, previous):        
