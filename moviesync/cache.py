@@ -33,9 +33,9 @@ class Cache:
             with closing(connection.cursor()) as cursor:                
                 cursor.execute(f"INSERT OR IGNORE INTO id_map(tmdb_id) VALUES(?)", (tmdb_id,))
                 if letterboxd_id is not None:
-                    cursor.execute(f"UPDATE id_map SET letterboxd_id = ? where tmdb_id = ?", (letterboxd_id, tmdb_id))
+                    cursor.execute(f"UPDATE id_map SET letterboxd_id = ? WHERE tmdb_id = ?", (letterboxd_id, tmdb_id))
                 if plex_id is not None:                    
-                    cursor.execute(f"UPDATE id_map SET plex_id = ? where tmdb_id = ?", (plex_id, tmdb_id))
+                    cursor.execute(f"UPDATE id_map SET plex_id = ? WHERE tmdb_id = ?", (plex_id, tmdb_id))
                     
     # Find cached item by TMDB id
     def query_id_map(self, tmdb_id):
@@ -72,3 +72,10 @@ class Cache:
                     return row["tmdb_id"], row["plex_id"]
                 
         return None, None
+                        
+    # Unset Plex id in cache
+    def unset_plex_id(self, tmdb_id):
+        with sqlite3.connect(self.path) as connection:
+            connection.row_factory = sqlite3.Row
+            with closing(connection.cursor()) as cursor:
+                cursor.execute(f"UPDATE id_map SET plex_id = NULL WHERE tmdb_id = ?", (tmdb_id,))

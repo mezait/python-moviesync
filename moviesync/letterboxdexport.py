@@ -54,7 +54,7 @@ class LetterboxdExport:
     def _sort_plex_list(self, letterboxd_ids, collection_id, plex_ids):
         plex_id_keys = list(plex_ids.keys())
         previous = None
-    
+
         for i, item in enumerate(letterboxd_ids, 0):
             if item != plex_id_keys[i]:
                 # Out of order, determine current place in the list

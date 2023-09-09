@@ -58,43 +58,65 @@ class Plex:
             
             return None, None
         
-        in_plex = {} # tmdb_id, plex_id
-        not_in_plex = [] # tmdb_id
+        in_plex = {}        # tmdb_id, plex_id, fromcache
+        not_in_plex = []    # tmdb_id
         
-        for tmdb_id in tmdb_ids:
-            try:    
-                # Check cache first
-                tmdb_id, letterboxd_id, plex_id = self.cache.query_id_map(tmdb_id)
+        retryCount = 2
+        
+        while retryCount > 0:
+            for tmdb_id in tmdb_ids:
+                try:
+                    # Don't look if we know it's not there
+                    if tmdb_id in not_in_plex:
+                        continue
+                    
+                    # Check cache first
+                    tmdb_id, letterboxd_id, plex_id = self.cache.query_id_map(tmdb_id)
             
-                if plex_id is None:
-                    # Not in cache, search Plex by TMDB id
-                    plex_guid = self._get_by_tmdbid(dummy_rating_key, tmdb_id)
-                    rating_keys = self._get_all_rating_keys({ "guid": plex_guid })
+                    if plex_id is None:
+                        # Not in cache, search Plex by TMDB id
+                        plex_guid = self._get_by_tmdbid(dummy_rating_key, tmdb_id)
+                        rating_keys = self._get_all_rating_keys({ "guid": plex_guid })
                 
-                    if rating_keys:
-                        plex_id = rating_keys[0]
-                        self.cache.add_id_map(tmdb_id, None, plex_id)
-                        logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache")                 
-                        in_plex[tmdb_id] = plex_id
-                    else:
-                        logger.debug(f"{tmdb_id} not in Plex")
-                        not_in_plex.append(tmdb_id)
-                else:                
-                    logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache")
-                    in_plex[tmdb_id] = plex_id
-            except Exception as err:
-                logger.error(f"Unable to find Plex item, exception: {err}")
-        
-        if in_plex:
-            try:
-                geturi = f"{self._get_server_path()}/library/metadata/{','.join(map(lambda x: str(x), in_plex.values()))}"
+                        if rating_keys:
+                            plex_id = rating_keys[0]
+                            self.cache.add_id_map(tmdb_id, None, plex_id)
+                            logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache")                 
+                            in_plex[tmdb_id] = plex_id, False
+                        else:
+                            logger.debug(f"{tmdb_id} not in Plex")
+                            not_in_plex.append(tmdb_id)
+                    else:                
+                        logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache")
+                        in_plex[tmdb_id] = plex_id, True
+                except Exception as err:
+                    logger.error(f"Unable to find Plex item, exception: {err}")
+            
+            if not in_plex:
+                return None, not_in_plex
+                
+            try:                    
+                geturi = f"{self._get_server_path()}/library/metadata/{','.join(map(lambda x: str(x[0]), in_plex.values()))}"
                 puturi = f"{self.base_url}/library/collections/{collection_id}/items?X-Plex-Token={self.x_plex_token}&uri={geturi}"
                 
                 response = requests.put(puturi)
-                response.raise_for_status()        
+                response.raise_for_status()
+                
+                # Success, no need to retry
+                retryCount = 0
             except Exception as err:
                 logger.error(f"Unable to add Plex items, exception: {err}")
+                    
+                # Invalidate cache items
+                for tmdb_id in in_plex:
+                    if in_plex[tmdb_id][1]:
+                        self.cache.unset_plex_id(tmdb_id)
+                    
                 in_plex = None
+                
+                logger.debug("Removed invalid items from cache, retry.")
+
+                retryCount -= 1
 
         return in_plex, not_in_plex
     
