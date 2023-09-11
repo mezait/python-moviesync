@@ -11,6 +11,8 @@ class LetterboxdExport:
     # Add items to Plex
     def _add_to_plex(self, letterboxd_ids, plex_collection_id, plex_ids):
         not_plex = set(letterboxd_ids.keys()).difference(plex_ids.keys())
+        # added = {}        # tmdb_id, plex_id, fromcache
+        # not_found = []    # tmdb_id
         added, not_found = self.plex.add_items(plex_collection_id, not_plex)
         if added:
             plex_ids.update(added)

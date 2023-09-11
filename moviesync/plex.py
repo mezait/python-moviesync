@@ -60,6 +60,7 @@ class Plex:
         
         in_plex = {}        # tmdb_id, plex_id, fromcache
         not_in_plex = []    # tmdb_id
+        from_cache = []     # tmdb_id
         
         retryCount = 2
         
@@ -82,13 +83,14 @@ class Plex:
                             plex_id = rating_keys[0]
                             self.cache.add_id_map(tmdb_id, None, plex_id)
                             logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache")                 
-                            in_plex[tmdb_id] = plex_id, False
+                            in_plex[tmdb_id] = plex_id
                         else:
                             logger.debug(f"{tmdb_id} not in Plex")
                             not_in_plex.append(tmdb_id)
                     else:                
                         logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache")
-                        in_plex[tmdb_id] = plex_id, True
+                        in_plex[tmdb_id] = plex_id
+                        from_cache.append(tmdb_id)
                 except Exception as err:
                     logger.error(f"Unable to find Plex item, exception: {err}")
             
@@ -96,7 +98,7 @@ class Plex:
                 return None, not_in_plex
                 
             try:                    
-                geturi = f"{self._get_server_path()}/library/metadata/{','.join(map(lambda x: str(x[0]), in_plex.values()))}"
+                geturi = f"{self._get_server_path()}/library/metadata/{','.join(map(lambda x: str(x), in_plex.values()))}"
                 puturi = f"{self.base_url}/library/collections/{collection_id}/items?X-Plex-Token={self.x_plex_token}&uri={geturi}"
                 
                 response = requests.put(puturi)
@@ -108,9 +110,8 @@ class Plex:
                 logger.error(f"Unable to add Plex items, exception: {err}")
                     
                 # Invalidate cache items
-                for tmdb_id in in_plex:
-                    if in_plex[tmdb_id][1]:
-                        self.cache.unset_plex_id(tmdb_id)
+                for tmdb_id in from_cache:
+                    self.cache.unset_plex_id(tmdb_id)
                     
                 in_plex = None
                 
