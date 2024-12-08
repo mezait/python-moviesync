@@ -47,7 +47,12 @@ class Plex:
         
         root = lxml.etree.fromstring(response.content)
 
-        return root.find("SearchResult").get("guid")
+        searchResult = root.find("SearchResult")
+
+        if searchResult is None:
+            return None
+
+        return searchResult.get("guid")
     
     # Add items to Plex collection based on tmdb id
     def add_items(self, collection_id, tmdb_ids):
@@ -77,22 +82,27 @@ class Plex:
                     if plex_id is None:
                         # Not in cache, search Plex by TMDB id
                         plex_guid = self._get_by_tmdbid(dummy_rating_key, tmdb_id)
-                        rating_keys = self._get_all_rating_keys({ "guid": plex_guid })
+                        
+                        if plex_guid is not None:
+                            rating_keys = self._get_all_rating_keys({ "guid": plex_guid })
                 
-                        if rating_keys:
-                            plex_id = rating_keys[0]
-                            self.cache.add_id_map(tmdb_id, None, plex_id)
-                            logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache")                 
-                            in_plex[tmdb_id] = plex_id
+                            if rating_keys:
+                                plex_id = rating_keys[0]
+                                self.cache.add_id_map(tmdb_id, None, plex_id)
+                                logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache")                 
+                                in_plex[tmdb_id] = plex_id
+                            else:
+                                logger.debug(f"TMDB id {tmdb_id} not in Plex")
+                                not_in_plex.append(tmdb_id)                        
                         else:
-                            logger.debug(f"{tmdb_id} not in Plex")
+                            logger.debug(f"TMDB id {tmdb_id} not in Plex")
                             not_in_plex.append(tmdb_id)
                     else:                
                         logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache")
                         in_plex[tmdb_id] = plex_id
                         from_cache.append(tmdb_id)
                 except Exception as err:
-                    logger.error(f"Unable to find Plex item, exception: {err}")
+                    logger.error(f"Unable to find Plex item (TMDB id: {tmdb_id}), exception: {err}")
             
             if not in_plex:
                 return None, not_in_plex
