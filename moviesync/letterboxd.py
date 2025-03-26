@@ -33,7 +33,7 @@ class Letterboxd:
             film_slug = div["data-film-slug"]
             logger.debug(f"Found slug {film_slug} for id {film_id}")
             items.append((film_id, film_slug))
-        
+
         return items, next_url
 
     # Parse list url eg /jdemeza/watchlist/by/release/
@@ -68,11 +68,16 @@ class Letterboxd:
 
                 if tmdb_id is None:
                     response = requests.get(f"{self.base_url}/film/{film_slug}")
-                    response.raise_for_status()       
-
+                    response.raise_for_status()                    
                     soup = BeautifulSoup(response.content, "html.parser")
                     body = soup.find('body')
-                    tmdb_id = int(body["data-tmdb-id"])
+                    str_tmdb_id = body["data-tmdb-id"]
+
+                    if not str_tmdb_id:
+                        logger.debug(f"Could not find tmdb id for Letterboxd id {film_id}")
+                        continue
+
+                    tmdb_id = int(str_tmdb_id)
                     self.cache.add_id_map(tmdb_id, film_id, None)
                     logger.debug(f"Found tmdb id {tmdb_id} for Letterboxd id {film_id}, added to cache")
                 else:
