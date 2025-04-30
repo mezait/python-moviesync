@@ -1,6 +1,9 @@
 import logging
 import requests
+import time
 from bs4 import BeautifulSoup
+from http import HTTPStatus
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +17,7 @@ class Letterboxd:
     def _parse_items(self, list_url):
         items = []
         
-        response = requests.get(list_url)
-        response.raise_for_status()
-
+        response = self._withRetry(list_url)        
         soup = BeautifulSoup(response.content, "html.parser")
         
         # Next page
@@ -35,14 +36,14 @@ class Letterboxd:
             items.append((film_id, film_slug))
 
         return items, next_url
-
+                
     # Parse list url eg /jdemeza/watchlist/by/release/
     def _parse_list(self, list_url):
         i = 1
         
         logger.debug(f"Get page {i} of {list_url}")
         items, next_url = self._parse_items(f"{self.base_url}{list_url}")
-        logger.debug(f"Processed page {i} of {list_url}")
+        logger.debug(f"Processed page {i} of {list_url}") 
         
         while len(next_url) > 0:
             i += 1
@@ -52,6 +53,39 @@ class Letterboxd:
             logger.debug(f"Processed page {i} of {list_url}")
         
         return items
+
+    def _withRetry(self, url):
+        retry_count = 2
+        retry_sleep = 60
+        retry_codes = [
+            HTTPStatus.BAD_GATEWAY,
+            HTTPStatus.GATEWAY_TIMEOUT,
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            HTTPStatus.TOO_MANY_REQUESTS]
+
+        for n in range(retry_count):
+            try:
+                if n > 0: # 0 based index
+                    logger.debug(f"Sleep {retry_sleep}, attempt {n + 1}")
+
+                    time.sleep(retry_sleep)
+
+                logger.debug(f"With retry {url}")
+
+                response = requests.get(url)
+                response.raise_for_status()
+                
+                return response
+            except RequestException as e:
+                logger.error(f"Request failed, exception: {e}")
+
+                code = e.response.status_code
+        
+                if code in retry_codes:
+                    continue
+
+        logger.debug(f"Request failed, not retrying")
 
     # Get TMDB ids from a Letterboxd list
     def get_tmdb_ids(self, list_url):
@@ -67,8 +101,8 @@ class Letterboxd:
                 tmdb_id, letterboxd_id = self.cache.query_id_map_by_letterboxd(film_id)
 
                 if tmdb_id is None:
-                    response = requests.get(f"{self.base_url}/film/{film_slug}")
-                    response.raise_for_status()                    
+
+                    response = self._withRetry(f"{self.base_url}/film/{film_slug}")
                     soup = BeautifulSoup(response.content, "html.parser")
                     body = soup.find('body')
                     str_tmdb_id = body["data-tmdb-id"]
