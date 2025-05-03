@@ -55,7 +55,7 @@ class Letterboxd:
         return items
 
     def _withRetry(self, url):
-        retry_count = 2
+        retry_count = 3
         retry_sleep = 60
         retry_codes = [
             HTTPStatus.BAD_GATEWAY,
@@ -68,6 +68,10 @@ class Letterboxd:
             try:
                 if n > 0: # 0 based index
                     logger.debug(f"Sleep {retry_sleep}, attempt {n + 1}")
+
+                    # Exponential backoff
+                    if n > 1:
+                        retry_sleep = retry_sleep * 2
 
                     time.sleep(retry_sleep)
 
