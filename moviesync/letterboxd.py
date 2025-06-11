@@ -109,7 +109,8 @@ class Letterboxd:
                     response = self._withRetry(f"{self.base_url}/film/{film_slug}")
                     soup = BeautifulSoup(response.content, "html.parser")
                     body = soup.find('body')
-                    str_tmdb_id = body["data-tmdb-id"]
+
+                    str_tmdb_id = body.get("data-tmdb-id")
 
                     if not str_tmdb_id:
                         logger.debug(f"Could not find tmdb id for Letterboxd id {film_id}")
