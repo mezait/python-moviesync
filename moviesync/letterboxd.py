@@ -31,7 +31,7 @@ class Letterboxd:
             
         for div in divs:
             film_id = int(div["data-film-id"])
-            film_slug = div["data-film-slug"]
+            film_slug = div["data-item-slug"]
             logger.debug(f"Found slug {film_slug} for id {film_id}")
             items.append((film_id, film_slug))
 
