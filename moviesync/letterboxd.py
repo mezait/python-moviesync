@@ -26,8 +26,11 @@ class Letterboxd:
             next_url = next_url.get("href")
         else:
             next_url = ""
+
+        # Restrict to main column, avoid 'cloned from'
+        section = soup.find("section", { "class": "col-main" })
     
-        divs = soup.find_all("div", { "data-film-id": True })
+        divs = section.find_all("div", { "data-film-id": True })
             
         for div in divs:
             film_id = int(div["data-film-id"])
