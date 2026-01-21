@@ -1,7 +1,9 @@
 import logging
+
 import yaml
 
 logger = logging.getLogger(__name__)
+
 
 class Config:
     def load():
