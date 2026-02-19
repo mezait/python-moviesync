@@ -48,7 +48,7 @@ class LetterboxdExport:
 
     # Remove items from Plex
     def _remove_from_plex(self, letterboxd_ids, collection_id, plex_ids):
-        not_letterboxd = set(plex_ids.keys()).difference(letterboxd_ids.keys())
+        not_letterboxd = set(plex_ids.keys()).difference(set(letterboxd_ids.keys()))
         for key in not_letterboxd:
             if self.plex.remove_item(collection_id, plex_ids[key]):
                 del plex_ids[key]
