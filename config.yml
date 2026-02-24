@@ -7,3 +7,8 @@ radarr:
     apikey: <radarr_apikey>
     quality_profile: <radarr_quality_profile>
     root_folder_path: <radarr_root_folder_path>
+lists:
+ - letterboxd_url: "/path/to/list/1"
+   plex_list: "Plex List 1"
+ - letterboxd_url: "/path/to/list/2"
+   plex_list: "Plex List 2"

@@ -4,7 +4,8 @@ logger = logging.getLogger(__name__)
 
 
 class LetterboxdExport:
-    def __init__(self, letterboxd, plex, radarr):
+    def __init__(self, config, letterboxd, plex, radarr):
+        self.lists = config["lists"]
         self.letterboxd = letterboxd
         self.plex = plex
         self.radarr = radarr
@@ -73,7 +74,7 @@ class LetterboxdExport:
             previous = plex_ids[plex_id_keys[i]]
 
     # Sync with Plex and Radarr
-    async def to_plex(self, letterboxd_list, plex_collection_title):
+    async def _to_plex(self, letterboxd_list, plex_collection_title):
         logger.info(
             f"Starting sync between Letterboxd list ({letterboxd_list}) and Plex collection ({plex_collection_title})."
         )
@@ -115,3 +116,7 @@ class LetterboxdExport:
         logger.info(
             f"Finished sync between Letterboxd list ({letterboxd_list}) and Plex collection ({plex_collection_id})."
         )
+
+    async def to_plex(self):
+        for list in self.lists:
+            await self._to_plex(list["letterboxd_url"], list["plex_list"])

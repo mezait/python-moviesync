@@ -53,7 +53,7 @@ class Letterboxd:
                     logger.debug(f"Parse url {list_url} with retry")
 
                     # Wait for page to load
-                    await page.select(".poster-grid", timeout=timeout)
+                    await page.select(".poster-grid, .poster-list", timeout=timeout)
 
                     response = await page.get_content()
 

@@ -21,20 +21,16 @@ logger = logging.getLogger(__name__)
 
 # sync.py "<path_to_letterboxd_list>" "<name_of_plex_collection>"
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        logger.error("Invalid number of params")
-        sys.exit(1)  # error
-
     cache = Cache()
     config = Config.load()
     letterboxd = Letterboxd(cache)
     plex = Plex(config, cache)
     radarr = Radarr(config)
 
-    letterboxdexport = LetterboxdExport(letterboxd, plex, radarr)
+    letterboxdexport = LetterboxdExport(config, letterboxd, plex, radarr)
 
     try:
-        asyncio.run(letterboxdexport.to_plex(sys.argv[1], sys.argv[2]))
+        asyncio.run(letterboxdexport.to_plex())
     except Exception as err:
         logger.error(f"Failed to export from Letterboxd to Plex, exception: {err}")
         sys.exit(1)  # error
