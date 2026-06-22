@@ -4,7 +4,7 @@ RUN apt-get update && \
     apt-get install -y xvfb chromium
 
 # Install python dependencies
-RUN pip install beautifulsoup4 lxml pyyaml requests zendriver
+RUN pip install beautifulsoup4 lxml plexapi pyyaml requests zendriver
 
 COPY moviesync ./moviesync
 COPY sync.py .

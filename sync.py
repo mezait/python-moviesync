@@ -11,10 +11,6 @@ from moviesync.radarr import Radarr
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("moviesync").setLevel(logging.DEBUG)
-# logging.getLogger("requests").setLevel(logging.WARNING)
-# logging.getLogger("uc").setLevel(logging.WARNING)
-# logging.getLogger("urllib3").setLevel(logging.WARNING)
-# logging.getLogger("websockets").setLevel(logging.WARNING)
 logging.getLogger("zendriver").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)

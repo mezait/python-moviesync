@@ -1,3 +1,4 @@
+import json
 import logging
 
 import zendriver as zd
@@ -11,6 +12,14 @@ class Letterboxd:
 
     def __init__(self, cache):
         self.cache = cache
+
+    # Film id is json that needs to be parsed
+    def _parse_film_id(self, film_id_str):
+        film_id_json = json.loads(film_id_str)
+        uid = film_id_json.get("uid")
+        film_id = int(uid.replace("film:", ""))
+
+        return film_id
 
     # Parse item url eg /film/despicable-me-4/
     async def _parse_item(self, url, retry_count=3, timeout=30):
@@ -62,10 +71,10 @@ class Letterboxd:
                     # Restrict to main column, avoid 'cloned from'
                     section = soup.find("section", {"class": "col-main"})
 
-                    divs = section.find_all("div", {"data-film-id": True})
+                    divs = section.find_all("div", {"data-postered-identifier": True})
 
                     for div in divs:
-                        film_id = int(div["data-film-id"])
+                        film_id = self._parse_film_id(div["data-postered-identifier"])
                         film_slug = div["data-item-slug"]
                         logger.debug(f"Found slug {film_slug} for id {film_id}")
                         items.append((film_id, film_slug))

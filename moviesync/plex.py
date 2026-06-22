@@ -1,207 +1,88 @@
 import logging
 
-import lxml.etree
-import requests
-
-from moviesync import utils
+from plexapi.exceptions import NotFound
+from plexapi.server import PlexServer
 
 logger = logging.getLogger(__name__)
 
 
 class Plex:
     def __init__(self, config, cache):
-        self.base_url = config["plex"]["url"]
-        self.x_plex_token = config["plex"]["token"]
-        self.library_id = config["plex"]["movie_library_id"]
+        plex = PlexServer(config["plex"]["url"], config["plex"]["token"])
+
+        self.plex_library = plex.library.section(config["plex"]["movie_library_name"])
         self.cache = cache
 
-    # Get all rating keys based on filter
-    def _get_all_rating_keys(self, filters):
-        rating_keys = []
-
-        response = requests.get(
-            f"{self.base_url}/library/sections/{self.library_id}/all?X-Plex-Token={self.x_plex_token}{utils.parse_html_params(filters)}"
-        )
-        response.raise_for_status()
-
-        root = lxml.etree.fromstring(response.content)
-
-        for video in root.findall("Video"):
-            rating_keys.append(int(video.get("ratingKey")))
-
-        return rating_keys
-
-    # Get the machine identifier from the token
-    def _get_machine_identitier(self):
-        response = requests.get(
-            f"{self.base_url}/identity?X-Plex-Token={self.x_plex_token}"
-        )
-        response.raise_for_status()
-
-        root = lxml.etree.fromstring(response.content)
-
-        return root.get("machineIdentifier")
-
-    # Get the Plex server path from the machine identifier
-    def _get_server_path(self):
-        return f"server://{self._get_machine_identitier()}/com.plexapp.plugins.library"
-
-    # Use the match hack to find a plex movie based on TMDB id
-    def _get_by_tmdbid(self, rating_key, tmdb_id):
-        # https://forums.plex.tv/t/discover-future-movies/816009/7
-        response = requests.get(
-            f"{self.base_url}/library/metadata/{rating_key}/matches?X-Plex-Token={self.x_plex_token}&manual=1&title=tmdb-{tmdb_id}"
-        )
-        response.raise_for_status()
-
-        root = lxml.etree.fromstring(response.content)
-
-        searchResult = root.find("SearchResult")
-
-        if searchResult is None:
-            return None
-
-        return searchResult.get("guid")
-
-    # Add items to Plex collection based on tmdb id
-    def add_items(self, collection_id, tmdb_ids):
-        try:
-            dummy_rating_key = self._get_all_rating_keys({"limit": 1})[0]
-        except Exception as err:
-            logger.error(f"Unable to retrieve dummy rating key, exception: {err}")
-
-            return None, None
-
-        in_plex = {}  # tmdb_id, plex_id, fromcache
+    # Add items to Plex collection based on TMDB id
+    def add_items(self, collection_title, tmdb_ids):
+        in_plex = {}  # tmdb_id, plex_id
         not_in_plex = []  # tmdb_id
-        from_cache = []  # tmdb_id
 
-        retryCount = 2
+        for tmdb_id in tmdb_ids:
+            # Check cache first
+            tmdb_id, letterboxd_id, plex_id = self.cache.query_id_map(tmdb_id)
 
-        while retryCount > 0:
-            for tmdb_id in tmdb_ids:
+            if plex_id is None:
+                # Not in cache, search Plex by TMDB id
+                plex_item = None
+
                 try:
-                    # Don't look if we know it's not there
-                    if tmdb_id in not_in_plex:
-                        continue
+                    plex_item = self.plex_library.getGuid(f"tmdb://{tmdb_id}")
+                except NotFound:
+                    pass
 
-                    # Check cache first
-                    tmdb_id, letterboxd_id, plex_id = self.cache.query_id_map(tmdb_id)
-
-                    if plex_id is None:
-                        # Not in cache, search Plex by TMDB id
-                        plex_guid = self._get_by_tmdbid(dummy_rating_key, tmdb_id)
-
-                        if plex_guid is not None:
-                            rating_keys = self._get_all_rating_keys({"guid": plex_guid})
-
-                            if rating_keys:
-                                plex_id = rating_keys[0]
-                                self.cache.add_id_map(tmdb_id, None, plex_id)
-                                logger.debug(
-                                    f"Found TMDB id {tmdb_id} for Plex id {plex_id}, added to cache"
-                                )
-                                in_plex[tmdb_id] = plex_id
-                            else:
-                                logger.debug(f"TMDB id {tmdb_id} not in Plex")
-                                not_in_plex.append(tmdb_id)
-                        else:
-                            logger.debug(f"TMDB id {tmdb_id} not in Plex")
-                            not_in_plex.append(tmdb_id)
-                    else:
-                        logger.debug(
-                            f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache"
-                        )
-                        in_plex[tmdb_id] = plex_id
-                        from_cache.append(tmdb_id)
-                except Exception as err:
-                    logger.error(
-                        f"Unable to find Plex item (TMDB id: {tmdb_id}), exception: {err}"
+                if plex_item is not None:
+                    self.cache.add_id_map(tmdb_id, None, plex_item.ratingKey)
+                    logger.debug(
+                        f"Found TMDB id {tmdb_id} for Plex id {plex_item.ratingKey}, added to cache"
                     )
+                    in_plex[tmdb_id] = plex_item.ratingKey
+                else:
+                    logger.debug(f"TMDB id {tmdb_id} not in Plex")
+                    not_in_plex.append(tmdb_id)
+            else:
+                logger.debug(f"Found TMDB id {tmdb_id} for Plex id {plex_id} in cache")
+                in_plex[tmdb_id] = plex_id
 
-            if not in_plex:
-                return None, not_in_plex
+        # Nothing in Plex that isn't already in the collection, nothing to do
+        if not in_plex:
+            return None, not_in_plex
 
+        for tmdb_id in in_plex:
             try:
-                geturi = f"{self._get_server_path()}/library/metadata/{','.join(map(lambda x: str(x), in_plex.values()))}"
-                puturi = f"{self.base_url}/library/collections/{collection_id}/items?X-Plex-Token={self.x_plex_token}&uri={geturi}"
-
-                response = requests.put(puturi)
-                response.raise_for_status()
-
-                # Success, no need to retry
-                retryCount = 0
+                plex_item = self.plex_library.fetchItem(in_plex[tmdb_id])
+                plex_item.addCollection(collection_title)
             except Exception as err:
-                logger.error(f"Unable to add Plex items, exception: {err}")
-
-                # Invalidate cache items
-                for tmdb_id in from_cache:
-                    self.cache.unset_plex_id(tmdb_id)
-
-                in_plex = None
-
-                logger.debug("Removed invalid items from cache, retry.")
-
-                retryCount -= 1
+                logger.error(f"Unable to add Plex item, exception: {err}")
 
         return in_plex, not_in_plex
 
-    # Get collections, can filter by title.
-    def get_collection_ids(self, title):
-        rating_keys = []
-
-        uri = f"{self.base_url}/library/sections/{self.library_id}/collections?X-Plex-Token={self.x_plex_token}"
-
-        if title is not None:
-            params = utils.parse_html_params({"title": title})
-            uri = f"{uri}{params}"
-
-        try:
-            response = requests.get(uri)
-            response.raise_for_status()
-
-            root = lxml.etree.fromstring(response.content)
-
-            for directory in root.findall("Directory"):
-                rating_keys.append(int(directory.get("ratingKey")))
-
-            return rating_keys
-        except Exception as err:
-            logger.error(f"Unable to get Plex collection id(s), exception: {err}")
-
-        return None
-
     # Get TMDB ids from a Plex collection
-    def get_tmdb_ids(self, collection_id):
+    def get_tmdb_ids(self, collection_title):
         tmdb_ids = {}
 
         try:
-            response = requests.get(
-                f"{self.base_url}/library/metadata/{collection_id}/children?X-Plex-Token={self.x_plex_token}&includeGuids=1"
-            )
-            response.raise_for_status()
+            collection = self.plex_library.collection(collection_title)
 
-            root = lxml.etree.fromstring(response.content)
-
-            for video in root.findall("Video"):
-                rating_key = int(video.get("ratingKey"))
-
+            for item in collection.items():
                 # Check cache first
-                tmdb_id, plex_id = self.cache.query_id_map_by_plex(rating_key)
+                tmdb_id, plex_id = self.cache.query_id_map_by_plex(item.ratingKey)
 
                 if tmdb_id is None:
-                    guid = video.xpath("Guid[starts-with(@id, 'tmdb://')]")[0]
-                    tmdb_id = int(guid.get("id").replace("tmdb://", ""))
-                    self.cache.add_id_map(tmdb_id, None, rating_key)
-                    logger.debug(
-                        f"Found TMDB id {tmdb_id} for Plex id {rating_key}, added to cache"
-                    )
+                    for guid in item.guids:
+                        if guid.id.startswith("tmdb://"):
+                            tmdb_id = int(guid.get("id").replace("tmdb://", ""))
+                            self.cache.add_id_map(tmdb_id, None, item.ratingKey)
+                            logger.debug(
+                                f"Found TMDB id {tmdb_id} for Plex id {item.ratingKey}, added to cache"
+                            )
+                            break
                 else:
                     logger.debug(
-                        f"Found TMDB id {tmdb_id} for Plex id {rating_key} in cache"
+                        f"Found TMDB id {tmdb_id} for Plex id {item.ratingKey} in cache"
                     )
 
-                tmdb_ids[tmdb_id] = rating_key
+                tmdb_ids[tmdb_id] = item.ratingKey
         except Exception as err:
             logger.error(f"Unable to parse Plex collection, generic exception: {err}")
             tmdb_ids = None
@@ -209,16 +90,17 @@ class Plex:
         return tmdb_ids
 
     # Move an item within a collection
-    def move_item(self, collection_id, item_id, after_id):
-        uri = f"{self.base_url}/library/collections/{collection_id}/items/{item_id}/move?X-Plex-Token={self.x_plex_token}"
-
-        if after_id is not None:
-            params = utils.parse_html_params({"after": after_id})
-            uri = f"{uri}{params}"
-
+    def move_item(self, collection_title, item_id, after_id):
         try:
-            response = requests.put(uri)
-            response.raise_for_status()
+            collection = self.plex_library.collection(collection_title)
+
+            item_to_move = collection.fetchItem(item_id)
+            item_before = None
+
+            if after_id is not None:
+                item_before = collection.fetchItem(after_id)
+
+            collection.moveItem(item_to_move, item_before)
 
             return True
         except Exception as err:
@@ -227,12 +109,13 @@ class Plex:
         return False
 
     # Remove an item from a Plex collection
-    def remove_item(self, collection_id, item_id):
+    def remove_item(self, collection_title, item_id):
         try:
-            response = requests.delete(
-                f"{self.base_url}/library/collections/{collection_id}/items/{item_id}?X-Plex-Token={self.x_plex_token}"
-            )
-            response.raise_for_status()
+            collection = self.plex_library.collection(collection_title)
+
+            item_to_remove = collection.fetchItem(item_id)
+
+            collection.removeItems(item_to_remove)
 
             return True
         except Exception as err:

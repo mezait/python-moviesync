@@ -11,11 +11,11 @@ class LetterboxdExport:
         self.radarr = radarr
 
     # Add items to Plex
-    def _add_to_plex(self, letterboxd_ids, plex_collection_id, plex_ids):
+    def _add_to_plex(self, letterboxd_ids, plex_collection_title, plex_ids):
         not_plex = set(letterboxd_ids.keys()).difference(plex_ids.keys())
-        # added = {}        # tmdb_id, plex_id, fromcache
+        # added = {}        # tmdb_id, plex_id
         # not_found = []    # tmdb_id
-        added, not_found = self.plex.add_items(plex_collection_id, not_plex)
+        added, not_found = self.plex.add_items(plex_collection_title, not_plex)
         if added:
             plex_ids.update(added)
 
@@ -36,26 +36,15 @@ class LetterboxdExport:
                 # Not in Plex after add, so need to be excluded from Letterboxd sort
                 del letterboxd_ids[radarr_tmdb]
 
-    # Get Plex collection based on title
-    def _get_plex_collection_id(self, plex_collection_title):
-        logger.debug(f"Get Plex collection based on title: {plex_collection_title}")
-
-        plex_collections = self.plex.get_collection_ids(plex_collection_title)
-
-        if plex_collections:
-            return plex_collections[0]
-
-        return 0
-
     # Remove items from Plex
-    def _remove_from_plex(self, letterboxd_ids, collection_id, plex_ids):
+    def _remove_from_plex(self, letterboxd_ids, collection_title, plex_ids):
         not_letterboxd = set(plex_ids.keys()).difference(set(letterboxd_ids.keys()))
         for key in not_letterboxd:
-            if self.plex.remove_item(collection_id, plex_ids[key]):
+            if self.plex.remove_item(collection_title, plex_ids[key]):
                 del plex_ids[key]
 
     # Sort Plex items
-    def _sort_plex_list(self, letterboxd_ids, collection_id, plex_ids):
+    def _sort_plex_list(self, letterboxd_ids, collection_title, plex_ids):
         plex_id_keys = list(plex_ids.keys())
         previous = None
 
@@ -65,7 +54,7 @@ class LetterboxdExport:
                 idx = plex_id_keys.index(item)
                 actual = plex_ids[plex_id_keys[idx]]
 
-                if self.plex.move_item(collection_id, actual, previous):
+                if self.plex.move_item(collection_title, actual, previous):
                     logger.debug(f"Moved {actual} after {previous}")
 
                     plex_id_keys.insert(i, plex_id_keys.pop(idx))
@@ -79,11 +68,6 @@ class LetterboxdExport:
             f"Starting sync between Letterboxd list ({letterboxd_list}) and Plex collection ({plex_collection_title})."
         )
 
-        plex_collection_id = self._get_plex_collection_id(plex_collection_title)
-
-        if plex_collection_id == 0:
-            raise Exception("Unable to retrieve Plex collection.")
-
         # Get TMDB ids from the Letterboxd list
         logger.debug(f"Parsing Letterboxd list: {letterboxd_list}")
         letterboxd_ids = await self.letterboxd.get_tmdb_ids(letterboxd_list)
@@ -93,17 +77,17 @@ class LetterboxdExport:
 
         # Get TMDB ids from the Plex collection
         logger.debug(f"Parsing Plex collection: {plex_collection_title}")
-        plex_ids = self.plex.get_tmdb_ids(plex_collection_id)
+        plex_ids = self.plex.get_tmdb_ids(plex_collection_title)
         if plex_ids is None:
             raise Exception("Unable to retrieve Plex collection items.")
 
         # Items that are in Plex but not Letterboxd, remove from Plex.
         logger.debug("Removing items from Plex collection that aren't in Letterboxd.")
-        self._remove_from_plex(letterboxd_ids, plex_collection_id, plex_ids)
+        self._remove_from_plex(letterboxd_ids, plex_collection_title, plex_ids)
 
         # Items that are in Letterboxd but not Plex, add to Plex.
         logger.debug("Adding items from Letterboxd that aren't in Plex collection.")
-        not_found = self._add_to_plex(letterboxd_ids, plex_collection_id, plex_ids)
+        not_found = self._add_to_plex(letterboxd_ids, plex_collection_title, plex_ids)
 
         # If the item is also not in the Plex collection, add the item to Radarr.
         logger.debug("Adding items to Radarr that aren't in Plex collection.")
@@ -111,10 +95,10 @@ class LetterboxdExport:
 
         # Letterboxd list and Plex collection should now be the same length for sorting
         logger.debug("Sorting Plex collection.")
-        self._sort_plex_list(letterboxd_ids, plex_collection_id, plex_ids)
+        self._sort_plex_list(letterboxd_ids, plex_collection_title, plex_ids)
 
         logger.info(
-            f"Finished sync between Letterboxd list ({letterboxd_list}) and Plex collection ({plex_collection_id})."
+            f"Finished sync between Letterboxd list ({letterboxd_list}) and Plex collection ({plex_collection_title})."
         )
 
     async def to_plex(self):
