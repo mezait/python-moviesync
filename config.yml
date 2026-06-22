@@ -1,7 +1,7 @@
 plex:
     url: <plex_url>
     token: <plex_token>
-    movie_library_id: <plex_movie_library_id>
+    movie_library_name: <plex_movie_library_id>
 radarr:
     url: <radarr_url>
     apikey: <radarr_apikey>
