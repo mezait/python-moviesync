@@ -71,7 +71,7 @@ class Plex:
                 if tmdb_id is None:
                     for guid in item.guids:
                         if guid.id.startswith("tmdb://"):
-                            tmdb_id = int(guid.get("id").replace("tmdb://", ""))
+                            tmdb_id = int(guid.id.replace("tmdb://", ""))
                             self.cache.add_id_map(tmdb_id, None, item.ratingKey)
                             logger.debug(
                                 f"Found TMDB id {tmdb_id} for Plex id {item.ratingKey}, added to cache"
