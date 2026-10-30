@@ -55,6 +55,18 @@ class Plex:
             except Exception as err:
                 logger.error(f"Unable to add Plex item, exception: {err}")
 
+                if isinstance(err, NotFound):
+                    # Handle a plex item that was in the cache but is no longer in Plex (perhaps incorrectly matched originally)
+                    plexid = in_plex[tmdb_id]
+
+                    in_plex.pop(tmdb_id, None)
+                    not_in_plex.append(tmdb_id)
+                    self.cache.unset_plex_id(tmdb_id)
+
+                    logger.debug(
+                        f"TMDB id {tmdb_id} for Plex id {plexid} not found in Plex, removed from cache"
+                    )
+
         return in_plex, not_in_plex
 
     # Get TMDB ids from a Plex collection

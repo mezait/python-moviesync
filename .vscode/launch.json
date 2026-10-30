@@ -9,8 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "sync.py",
-            "console": "integratedTerminal",
-            "args": ["/jdemeza/watchlist/by/release/", "Jarrod's Watchlist"]
+            "console": "integratedTerminal"
         }
     ]
 }
